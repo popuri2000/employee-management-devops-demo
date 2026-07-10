@@ -1,0 +1,102 @@
+@model EmployeeDto
+@{
+    ViewData["Title"] = "Edit Employee";
+}
+
+<h2 class="mb-4">Edit Employee</h2>
+
+<div class="card" style="max-width: 700px;">
+    <div class="card-body">
+        <form id="employeeForm" novalidate>
+            <input type="hidden" id="EmployeeId" value="@Model.Id" />
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="Name" class="form-label">Name</label>
+                    <input id="Name" name="Name" class="form-control" value="@Model.Name" required minlength="2" maxlength="100" />
+                    <span class="text-danger small field-validation-valid" data-valmsg-for="Name"></span>
+                </div>
+                <div class="col-md-6">
+                    <label for="Email" class="form-label">Email</label>
+                    <input id="Email" name="Email" type="email" class="form-control" value="@Model.Email" required maxlength="150" />
+                    <span class="text-danger small field-validation-valid" data-valmsg-for="Email"></span>
+                </div>
+                <div class="col-md-6">
+                    <label for="Department" class="form-label">Department</label>
+                    <select id="Department" name="Department" class="form-select" required>
+                        @foreach (var dept in new[] { "Engineering", "Human Resources", "Finance", "Marketing", "Sales", "Operations" })
+                        {
+                            if (dept == Model.Department)
+                            {
+                                <option selected>@dept</option>
+                            }
+                            else
+                            {
+                                <option>@dept</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="Designation" class="form-label">Designation</label>
+                    <input id="Designation" name="Designation" class="form-control" value="@Model.Designation" required maxlength="100" />
+                </div>
+                <div class="col-md-6">
+                    <label for="Salary" class="form-label">Salary</label>
+                    <input id="Salary" name="Salary" class="form-control" type="number" step="0.01" min="0" value="@Model.Salary" required />
+                </div>
+                <div class="col-md-6">
+                    <label for="JoiningDate" class="form-label">Joining Date</label>
+                    <input id="JoiningDate" name="JoiningDate" class="form-control" type="date" value="@Model.JoiningDate.ToString("yyyy-MM-dd")" required />
+                </div>
+                <div class="col-md-6">
+                    <div class="form-check mt-4">
+                        <input id="IsActive" name="IsActive" class="form-check-input" type="checkbox" @(Model.IsActive ? "checked" : "") />
+                        <label for="IsActive" class="form-check-label">Is Active</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Update Employee</button>
+                <a asp-controller="Employees" asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(function () {
+            $('#employeeForm').on('submit', function (e) {
+                e.preventDefault();
+
+                var payload = {
+                    name: $('#Name').val(),
+                    email: $('#Email').val(),
+                    department: $('#Department').val(),
+                    designation: $('#Designation').val(),
+                    salary: parseFloat($('#Salary').val()),
+                    joiningDate: $('#JoiningDate').val(),
+                    isActive: $('#IsActive').is(':checked')
+                };
+
+                var id = $('#EmployeeId').val();
+
+                $.ajax({
+                    url: '/Employees/Edit/' + id,
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(payload)
+                }).done(function (response) {
+                    showToast(response.message || 'Employee updated successfully.', 'success');
+                    setTimeout(function () {
+                        window.location.href = '@Url.Action("Index", "Employees")';
+                    }, 800);
+                }).fail(function (xhr) {
+                    var message = (xhr.responseJSON && xhr.responseJSON.message) || 'Failed to update employee.';
+                    showToast(message, 'danger');
+                });
+            });
+        });
+    </script>
+}

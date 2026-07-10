@@ -1,0 +1,78 @@
+@model DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<h2 class="mb-4">Dashboard</h2>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card text-bg-primary h-100">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 opacity-75">Total Employees</h6>
+                <p class="card-text fs-2 fw-bold mb-0">@Model.TotalEmployees</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card text-bg-success h-100">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 opacity-75">Active</h6>
+                <p class="card-text fs-2 fw-bold mb-0">@Model.ActiveEmployees</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card text-bg-secondary h-100">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 opacity-75">Inactive</h6>
+                <p class="card-text fs-2 fw-bold mb-0">@Model.InactiveEmployees</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card text-bg-info h-100">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 opacity-75">Departments</h6>
+                <p class="card-text fs-2 fw-bold mb-0">@Model.DepartmentCount</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">Employees by Department</div>
+            <div class="card-body">
+                @if (Model.DepartmentBreakdown.Count == 0)
+                {
+                    <p class="text-muted mb-0">No employee data available.</p>
+                }
+                else
+                {
+                    <ul class="list-group list-group-flush">
+                        @foreach (var dept in Model.DepartmentBreakdown)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                @dept.Department
+                                <span class="badge text-bg-primary rounded-pill">@dept.Count</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">Summary</div>
+            <div class="card-body">
+                <p class="mb-2"><strong>Average Salary:</strong> @Model.AverageSalary.ToString("C")</p>
+                <p class="mb-0">
+                    <a asp-controller="Employees" asp-action="Index" class="btn btn-primary">Manage Employees</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
