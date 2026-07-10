@@ -466,7 +466,7 @@ gitGraph
     merge feature/rate-limiting id: "PR #2 merged (CI green)"
 ```
 
-- `main` — always deployable; every push/merge triggers the full CI/CD pipeline.
+- `main` — always deployable; every push/merge triggers the full CI/CD pipeline. **Protected** in GitHub (Settings → Branches): a pull request is required, and `Restore, Build, Test & Publish`, `Build Docker Images`, and `Docker Compose Smoke Test` must all pass before merging.
 - `feature/*` — one branch per feature or fix, opened as a pull request into `main`, merged only once CI is green.
 - `fix/*` / `hotfix/*` — same flow as `feature/*`, used for bug fixes.
 
