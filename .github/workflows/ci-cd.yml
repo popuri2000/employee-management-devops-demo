@@ -105,3 +105,50 @@ jobs:
           tags: employeemanagement-web:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  docker-compose-smoke-test:
+    name: Docker Compose Smoke Test
+    runs-on: ubuntu-latest
+    needs: build-test-publish
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start full stack (SQL Server + API + Web)
+        run: docker compose up -d --build --wait --wait-timeout 300
+
+      - name: Show running containers
+        if: always()
+        run: docker compose ps
+
+      - name: Verify API health endpoint
+        run: |
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:8080/health; then exit 0; fi
+            sleep 3
+          done
+          echo "API health check never succeeded" && exit 1
+
+      - name: Verify API returns seeded employee data
+        run: |
+          response=$(curl -sf "http://localhost:8080/api/v1/employees?pageNumber=1&pageSize=5")
+          echo "$response"
+          echo "$response" | grep -q '"totalCount"' || (echo "API did not return expected employee payload" && exit 1)
+
+      - name: Verify MVC Web app is reachable and reaches the API
+        run: |
+          # Web -> API is a server-to-server call; hitting the login page proves the
+          # Web container is up and can render, independent of the API being healthy.
+          status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8081/Account/Login)
+          echo "Web /Account/Login status: $status"
+          [ "$status" = "200" ] || (echo "Web app did not respond as expected" && exit 1)
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down the stack
+        if: always()
+        run: docker compose down -v

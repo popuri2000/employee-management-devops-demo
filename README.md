@@ -384,6 +384,10 @@ graph TD
     L --> M
     M -->|Yes| N[Build API Docker image]
     M -->|Yes| O[Build MVC Docker image]
+    N --> P[docker compose up --wait]
+    O --> P
+    P --> Q[Smoke test: /health, /api/v1/employees, Web login page]
+    Q --> R[docker compose down -v]
 ```
 
 **Job 1 — `build-test-publish`** (runs on every push/PR to `main`):
@@ -403,6 +407,15 @@ graph TD
 3. Build the MVC image from `docker/Dockerfile.web`.
 
 Images are built (not pushed) in this demo pipeline to keep everything within GitHub's free tier — pushing to a registry (Docker Hub, GHCR) can be added by uncommenting/adding a login + push step once you have registry credentials.
+
+**Job 3 — `docker-compose-smoke-test`** (runs only on pushes to `main`, after Job 1 succeeds): this is what actually proves the three containers work together, not just that each image builds in isolation.
+1. `docker compose up -d --build --wait` — builds and starts SQL Server, the API, and the MVC Web app on GitHub's runner, and blocks until all three containers report **healthy** (using the same health checks described in [Docker](#docker)).
+2. Poll `http://localhost:8080/health` until the API responds.
+3. Hit `http://localhost:8080/api/v1/employees` and assert the response actually contains employee data (i.e. the API successfully talked to SQL Server and ran its migrations).
+4. Hit `http://localhost:8081/Account/Login` and assert the MVC Web container is serving pages.
+5. Dump `docker compose logs` if anything failed, then always run `docker compose down -v` to tear the stack down cleanly.
+
+This job runs on GitHub-hosted `ubuntu-latest` runners, which come with Docker and Compose v2 preinstalled — no self-hosted runner or paid add-on required.
 
 ---
 

@@ -489,3 +489,6 @@ publish/
 # Serilog file sink output
 logs/
 **/logs/
+
+# Local Claude Code session state
+.claude/
