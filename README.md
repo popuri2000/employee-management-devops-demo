@@ -1,8 +1,6 @@
 # Employee Management System
 
-[![CI/CD Pipeline](https://github.com/<OWNER>/<REPO>/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/<OWNER>/<REPO>/actions/workflows/ci-cd.yml)
-
-> Replace `<OWNER>/<REPO>` above with your GitHub username/org and repository name once this is pushed — GitHub will then render a live build-status badge.
+[![CI/CD Pipeline](https://github.com/popuri2000/employee-management-devops-demo/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/popuri2000/employee-management-devops-demo/actions/workflows/ci-cd.yml)
 
 A production-ready **Employee Management System** built to demonstrate modern .NET development and DevOps practices end-to-end — Clean Architecture, a REST API, an MVC front-end, automated testing, containerization, and CI/CD — using **only free and open-source tooling**.
 
