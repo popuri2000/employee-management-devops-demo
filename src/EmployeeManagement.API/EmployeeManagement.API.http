@@ -1,6 +1,36 @@
 @EmployeeManagement.API_HostAddress = http://localhost:5088
 
-GET {{EmployeeManagement.API_HostAddress}}/weatherforecast/
+GET {{EmployeeManagement.API_HostAddress}}/health
 Accept: application/json
+
+###
+
+GET {{EmployeeManagement.API_HostAddress}}/api/v1/employees?pageNumber=1&pageSize=10
+Accept: application/json
+
+###
+
+POST {{EmployeeManagement.API_HostAddress}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "Admin@123"
+}
+
+###
+
+POST {{EmployeeManagement.API_HostAddress}}/api/v1/employees
+Content-Type: application/json
+
+{
+  "name": "Test User",
+  "email": "test.user@example.com",
+  "department": "Engineering",
+  "designation": "QA Engineer",
+  "salary": 50000,
+  "joiningDate": "2024-01-01",
+  "isActive": true
+}
 
 ###

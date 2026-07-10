@@ -33,10 +33,22 @@ jobs:
       - name: Build solution
         run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore
 
-      - name: Run unit tests
-        run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" --results-directory ./test-results
+      - name: Run unit tests with code coverage
+        run: >
+          dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal
+          --logger "trx;LogFileName=test-results.trx"
+          --collect:"XPlat Code Coverage"
+          --settings tests/EmployeeManagement.Tests/coverlet.runsettings
+          --results-directory ./test-results
 
-      - name: Upload test results
+      - name: Generate code coverage report
+        if: always()
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.4.4
+          reportgenerator "-reports:test-results/**/coverage.cobertura.xml" "-targetdir:test-results/coverage-report" "-reporttypes:Html;TextSummary"
+          { echo "### Code Coverage Summary"; echo '```'; cat test-results/coverage-report/Summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test results and coverage report
         if: always()
         uses: actions/upload-artifact@v4
         with:

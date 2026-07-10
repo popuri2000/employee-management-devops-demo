@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using EmployeeManagement.Application.Common;
 using EmployeeManagement.Application.DTOs;
 using EmployeeManagement.Application.Interfaces;
@@ -6,7 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace EmployeeManagement.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/[controller]")]
 [Produces("application/json")]
 public class EmployeesController : ControllerBase
 {

@@ -14,7 +14,7 @@ public class AuthApiClient : IAuthApiClient
 
     public async Task<LoginResponseDto> LoginAsync(LoginRequestDto request, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PostAsJsonAsync("api/auth/login", request, cancellationToken);
+        var response = await _httpClient.PostAsJsonAsync("api/v1/auth/login", request, cancellationToken);
 
         var result = await response.Content.ReadFromJsonAsync<LoginResponseDto>(cancellationToken: cancellationToken);
 

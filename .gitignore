@@ -485,3 +485,7 @@ $RECYCLE.BIN/
 test-results/
 publish/
 *.trx
+
+# Serilog file sink output
+logs/
+**/logs/

@@ -30,7 +30,7 @@ public class EmployeeApiClient : IEmployeeApiClient
             query.Add($"department={Uri.EscapeDataString(department)}");
         }
 
-        var response = await _httpClient.GetAsync($"api/employees?{string.Join("&", query)}", cancellationToken);
+        var response = await _httpClient.GetAsync($"api/v1/employees?{string.Join("&", query)}", cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -43,7 +43,7 @@ public class EmployeeApiClient : IEmployeeApiClient
 
     public async Task<EmployeeDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.GetAsync($"api/employees/{id}", cancellationToken);
+        var response = await _httpClient.GetAsync($"api/v1/employees/{id}", cancellationToken);
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
@@ -56,19 +56,19 @@ public class EmployeeApiClient : IEmployeeApiClient
 
     public async Task<ApiResult<EmployeeDto>> CreateAsync(CreateEmployeeDto dto, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PostAsJsonAsync("api/employees", dto, cancellationToken);
+        var response = await _httpClient.PostAsJsonAsync("api/v1/employees", dto, cancellationToken);
         return await BuildResultAsync<EmployeeDto>(response, cancellationToken);
     }
 
     public async Task<ApiResult<EmployeeDto>> UpdateAsync(int id, UpdateEmployeeDto dto, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/employees/{id}", dto, cancellationToken);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/employees/{id}", dto, cancellationToken);
         return await BuildResultAsync<EmployeeDto>(response, cancellationToken);
     }
 
     public async Task<ApiResult<bool>> DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.DeleteAsync($"api/employees/{id}", cancellationToken);
+        var response = await _httpClient.DeleteAsync($"api/v1/employees/{id}", cancellationToken);
         return await BuildResultAsync<bool>(response, cancellationToken, successData: true);
     }
 

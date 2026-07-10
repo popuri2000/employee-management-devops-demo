@@ -1,14 +1,37 @@
+using System.Threading.RateLimiting;
+using Asp.Versioning;
 using EmployeeManagement.API.Middleware;
 using EmployeeManagement.Application;
 using EmployeeManagement.Infrastructure;
 using EmployeeManagement.Infrastructure.Persistence;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .WriteTo.File("logs/api-.log", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 14));
+
 // Add services to the container.
 builder.Services.AddControllers();
+
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;
+    options.ApiVersionReader = new UrlSegmentApiVersionReader();
+}).AddApiExplorer(options =>
+{
+    options.GroupNameFormat = "'v'VVV";
+    options.SubstituteApiVersionInUrl = true;
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -35,6 +58,20 @@ builder.Services.AddCors(options =>
     });
 });
 
+const string RateLimiterPolicyName = "ApiFixedWindow";
+builder.Services.AddRateLimiter(limiterOptions =>
+{
+    limiterOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    limiterOptions.AddFixedWindowLimiter(RateLimiterPolicyName, windowOptions =>
+    {
+        windowOptions.PermitLimit = 100;
+        windowOptions.Window = TimeSpan.FromMinutes(1);
+        windowOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        windowOptions.QueueLimit = 10;
+    });
+});
+
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
@@ -50,6 +87,8 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
+app.UseSerilogRequestLogging();
+
 app.UseGlobalExceptionMiddleware();
 
 app.UseSwagger();
@@ -63,9 +102,11 @@ app.UseHttpsRedirection();
 
 app.UseCors(CorsPolicyName);
 
+app.UseRateLimiter();
+
 app.UseAuthorization();
 
-app.MapControllers();
+app.MapControllers().RequireRateLimiting(RateLimiterPolicyName);
 app.MapHealthChecks("/health");
 
 app.Run();

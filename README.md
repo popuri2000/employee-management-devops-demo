@@ -1,37 +1,60 @@
 # Employee Management System
 
+[![CI/CD Pipeline](https://github.com/<OWNER>/<REPO>/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/<OWNER>/<REPO>/actions/workflows/ci-cd.yml)
+
+> Replace `<OWNER>/<REPO>` above with your GitHub username/org and repository name once this is pushed — GitHub will then render a live build-status badge.
+
 A production-ready **Employee Management System** built to demonstrate modern .NET development and DevOps practices end-to-end — Clean Architecture, a REST API, an MVC front-end, automated testing, containerization, and CI/CD — using **only free and open-source tooling**.
+
+---
+
+## Project Objectives
+
+This repository exists to demonstrate, in one runnable codebase, the practices a small engineering team is expected to know:
+
+- Structuring a real ASP.NET Core solution with **Clean Architecture** instead of a single monolithic project.
+- Separating a REST API from its consuming front-end, so either can be replaced or scaled independently.
+- Writing automated tests that survive refactors (mocked services + an in-memory database, not brittle end-to-end-only tests).
+- Shipping the same artifact to a developer's laptop (LocalDB) and to containers (Docker Compose) without code changes — only configuration changes.
+- Automating build/test/publish with CI so "it works on my machine" is caught before merge.
+- Doing all of the above with **zero paid services**: GitHub Actions free tier, Docker Desktop, SQL Server Developer edition, and open-source NuGet packages only.
 
 ---
 
 ## Table of Contents
 
-1. [Technology Stack](#technology-stack)
-2. [Architecture](#architecture)
-3. [Folder Structure](#folder-structure)
-4. [Features](#features)
-5. [How to Run](#how-to-run)
-6. [Swagger Documentation](#swagger-documentation)
-7. [Unit Testing](#unit-testing)
-8. [Docker](#docker)
-9. [CI/CD with GitHub Actions](#cicd-with-github-actions)
-10. [Git & GitHub Workflow](#git--github-workflow)
-11. [Screenshots](#screenshots)
+1. [Project Objectives](#project-objectives)
+2. [Technology Stack](#technology-stack)
+3. [Architecture](#architecture)
+4. [DevOps Lifecycle](#devops-lifecycle)
+5. [Folder Structure](#folder-structure)
+6. [Features](#features)
+7. [How to Run](#how-to-run)
+8. [Swagger Documentation](#swagger-documentation)
+9. [Unit Testing & Code Coverage](#unit-testing--code-coverage)
+10. [Docker](#docker)
+11. [CI/CD with GitHub Actions](#cicd-with-github-actions)
+12. [Git & GitHub Workflow](#git--github-workflow)
+13. [Screenshots](#screenshots)
+14. [Future Enhancements](#future-enhancements)
+15. [Lessons Learned](#lessons-learned)
 
 ---
 
 ## Technology Stack
 
-| Layer      | Technology |
-|------------|------------|
-| Backend    | ASP.NET Core 9 Web API, Entity Framework Core 9, SQL Server (LocalDB / container) |
-| Frontend   | ASP.NET Core MVC (.NET 9), Bootstrap 5, jQuery, AJAX |
-| Docs       | Swagger / Swashbuckle |
-| Mapping    | AutoMapper |
-| Testing    | xUnit, Moq, EF Core InMemory |
-| Containers | Docker, Docker Compose |
-| CI/CD      | GitHub Actions (free tier) |
-| IDE        | Visual Studio 2026 |
+| Layer          | Technology |
+|----------------|------------|
+| Backend        | ASP.NET Core 9 Web API, Entity Framework Core 9, SQL Server (LocalDB / container) |
+| Frontend       | ASP.NET Core MVC (.NET 9), Bootstrap 5, jQuery, AJAX |
+| API Docs       | Swagger / Swashbuckle, with API versioning (`Asp.Versioning`) |
+| Resilience     | ASP.NET Core built-in rate limiting (fixed window) |
+| Mapping        | AutoMapper |
+| Logging        | Serilog (console + rolling file sinks), request logging middleware |
+| Testing        | xUnit, Moq, EF Core InMemory, Coverlet + ReportGenerator for coverage |
+| Containers     | Docker, Docker Compose |
+| CI/CD          | GitHub Actions (free tier) |
+| IDE            | Visual Studio 2026 |
 
 ---
 
@@ -91,13 +114,39 @@ sequenceDiagram
     Browser->>WebMVC: GET /Employees
     WebMVC-->>Browser: Employees/Index.cshtml (shell)
     Browser->>WebMVC: AJAX GET /Employees/List?search=&page=1
-    WebMVC->>API: GET /api/employees?searchTerm=&pageNumber=1 (HttpClient)
+    WebMVC->>API: GET /api/v1/employees?searchTerm=&pageNumber=1 (HttpClient)
     API->>DB: SELECT ... via EF Core
     DB-->>API: Employee rows
     API-->>WebMVC: 200 OK (PagedResult<EmployeeDto>)
     WebMVC-->>Browser: JSON
     Browser->>Browser: jQuery renders table + pagination
 ```
+
+---
+
+## DevOps Lifecycle
+
+How the pieces in this repository map onto a standard DevOps lifecycle:
+
+```mermaid
+graph LR
+    Plan[Plan<br/>Feature branch] --> Code[Code<br/>Clean Architecture layers]
+    Code --> Build[Build<br/>dotnet build]
+    Build --> Test[Test<br/>xUnit + coverage]
+    Test --> Package[Package<br/>dotnet publish + Docker images]
+    Package --> Release[Release<br/>GitHub Actions artifacts]
+    Release --> Deploy[Deploy<br/>docker compose up]
+    Deploy --> Operate[Operate<br/>Serilog logs + /health checks]
+    Operate --> Plan
+```
+
+- **Plan / Code** — work happens on a `feature/*` branch against the layered solution described above.
+- **Build** — `dotnet build` on every push/PR via GitHub Actions; fails fast on compile errors.
+- **Test** — `dotnet test` with Coverlet code coverage collection; results and an HTML coverage report are uploaded as build artifacts.
+- **Package** — `dotnet publish` produces deployable output for both the API and MVC app; Docker images are built from the same source on pushes to `main`.
+- **Release** — GitHub Actions artifacts (`employeemanagement-api`, `employeemanagement-web`, `test-results`) are downloadable from the Actions run.
+- **Deploy** — `docker compose up` brings up SQL Server, the API, and the MVC app together, wired on one Docker network.
+- **Operate** — Serilog writes structured logs to console and rolling files; `/health` gives container orchestrators a liveness signal; the built-in rate limiter protects the API from accidental overload.
 
 ---
 
@@ -136,11 +185,11 @@ EmployeeManagementAPI/
 │   │   ├── Repositories/EmployeeRepository.cs
 │   │   └── DependencyInjection.cs
 │   ├── EmployeeManagement.API/
-│   │   ├── Controllers/                 # EmployeesController, AuthController
+│   │   ├── Controllers/                 # EmployeesController, AuthController (versioned api/v1/*)
 │   │   ├── Middleware/                  # GlobalExceptionMiddleware
 │   │   ├── Properties/launchSettings.json
-│   │   ├── appsettings.json / appsettings.Development.json
-│   │   └── Program.cs
+│   │   ├── appsettings.json / appsettings.Development.json / appsettings.Production.json
+│   │   └── Program.cs                   # Serilog, API versioning, rate limiting, Swagger, CORS
 │   └── EmployeeManagement.Web/
 │       ├── Controllers/                 # Account, Home (Dashboard), Employees
 │       ├── Services/                    # EmployeeApiClient, AuthApiClient (typed HttpClient)
@@ -148,13 +197,14 @@ EmployeeManagementAPI/
 │       ├── Views/                       # Account/Login, Home/Index, Employees/*
 │       ├── wwwroot/js/                  # site.js, employees.js (AJAX + toasts)
 │       ├── Properties/launchSettings.json
-│       ├── appsettings.json / appsettings.Development.json
-│       └── Program.cs
+│       ├── appsettings.json / appsettings.Development.json / appsettings.Production.json
+│       └── Program.cs                   # Serilog, cookie auth
 └── tests/
     └── EmployeeManagement.Tests/
         ├── Services/                    # EmployeeServiceTests, AuthServiceTests
         ├── Repositories/                # EmployeeRepositoryTests (EF InMemory)
-        └── Common/                      # PagedResultTests
+        ├── Common/                      # PagedResultTests
+        └── coverlet.runsettings         # Excludes generated EF migrations from coverage
 ```
 
 ---
@@ -166,7 +216,9 @@ EmployeeManagementAPI/
 - **Employee List** — searchable, filterable (by department), paginated table rendered via AJAX.
 - **Add / Edit / Delete Employee** — AJAX form submissions with client + server-side validation and Bootstrap toast notifications.
 - **Global exception handling** — a single middleware in the API maps domain exceptions to consistent HTTP responses (404 for not found, 400 for validation errors, 500 otherwise).
-- **Structured logging** via `ILogger` throughout the Application and API layers.
+- **API versioning** — routes are versioned (`/api/v1/...`) via `Asp.Versioning`, so future breaking changes can ship as `v2` without touching existing clients.
+- **Rate limiting** — a fixed-window limiter (100 requests/minute per policy, with queuing) protects the API from accidental overload; returns `429 Too Many Requests` when exceeded.
+- **Structured logging** — Serilog writes structured, leveled logs to the console and to rolling daily files (`logs/`) in both the API and the MVC app, including per-request logging.
 - **Responsive UI** — Bootstrap 5 grid and components.
 
 ---
@@ -230,13 +282,13 @@ The API exposes interactive Swagger/OpenAPI documentation via Swashbuckle:
 - Local: `https://localhost:7167/swagger`
 - Docker: `http://localhost:8080/swagger`
 
-It documents every endpoint on `EmployeesController` (`GET/POST/PUT/DELETE /api/employees`) and `AuthController` (`POST /api/auth/login`), including request/response schemas and status codes, and can be used to exercise the API directly without the MVC front-end.
+It documents every endpoint on `EmployeesController` (`GET/POST/PUT/DELETE /api/v1/employees`) and `AuthController` (`POST /api/v1/auth/login`), including request/response schemas and status codes, and can be used to exercise the API directly without the MVC front-end. All routes are versioned (`v1` today) via `Asp.Versioning`, so the Swagger document and route table will grow additional versions side by side if breaking changes are introduced later.
 
 ---
 
-## Unit Testing
+## Unit Testing & Code Coverage
 
-The `EmployeeManagement.Tests` project uses **xUnit**, **Moq**, and the **EF Core InMemory** provider:
+The `EmployeeManagement.Tests` project uses **xUnit**, **Moq**, and the **EF Core InMemory** provider — 25 tests in total:
 
 - `Services/EmployeeServiceTests.cs` — CRUD behavior, not-found/validation exception paths, mocked `IEmployeeRepository`.
 - `Services/AuthServiceTests.cs` — demo login success/failure/case-insensitivity.
@@ -248,6 +300,24 @@ Run all tests:
 ```bash
 dotnet test EmployeeManagement.slnx
 ```
+
+### Code coverage
+
+Coverage is collected with **Coverlet** (`--collect:"XPlat Code Coverage"`) and turned into an HTML/text report with **ReportGenerator**. Generated EF Core migration code is excluded via `tests/EmployeeManagement.Tests/coverlet.runsettings`, since it's scaffolded boilerplate rather than code worth unit testing.
+
+```bash
+# Collect coverage
+dotnet test EmployeeManagement.slnx \
+  --collect:"XPlat Code Coverage" \
+  --settings tests/EmployeeManagement.Tests/coverlet.runsettings \
+  --results-directory ./test-results
+
+# Turn the .cobertura.xml into a browsable HTML report
+dotnet tool install --global dotnet-reportgenerator-globaltool
+reportgenerator "-reports:test-results/**/coverage.cobertura.xml" "-targetdir:test-results/coverage-report" "-reporttypes:Html;TextSummary"
+```
+
+At the time of writing, this covers **~86% of lines** across Domain/Application/Infrastructure (excluding migrations), with the Application layer (DTOs, services, mapping) close to 92%. The GitHub Actions pipeline runs the same commands automatically and publishes the report as a build artifact plus a summary in the workflow run.
 
 ---
 
@@ -300,20 +370,22 @@ docker build -f docker/Dockerfile.api -t employeemanagement-api .
 `.github/workflows/ci-cd.yml` runs automatically **on every push to `main`** (and on pull requests targeting `main`), using only free, GitHub-hosted `ubuntu-latest` runners and official GitHub Actions.
 
 ```mermaid
-graph LR
+graph TD
     A[Push to main] --> B[Checkout code]
     B --> C[Setup .NET 9 SDK]
     C --> D[dotnet restore]
     D --> E[dotnet build --configuration Release]
-    E --> F[dotnet test]
-    F --> G[dotnet publish API]
-    F --> H[dotnet publish MVC Web]
-    G --> I[Upload API artifact]
-    H --> J[Upload Web artifact]
-    I --> K{Push to main?}
-    J --> K
-    K -->|Yes| L[Build API Docker image]
-    K -->|Yes| M[Build MVC Docker image]
+    E --> F[dotnet test + code coverage]
+    F --> G[Generate coverage report]
+    G --> H[Upload test results + coverage artifact]
+    F --> I[dotnet publish API]
+    F --> J[dotnet publish MVC Web]
+    I --> K[Upload API artifact]
+    J --> L[Upload Web artifact]
+    K --> M{Push to main?}
+    L --> M
+    M -->|Yes| N[Build API Docker image]
+    M -->|Yes| O[Build MVC Docker image]
 ```
 
 **Job 1 — `build-test-publish`** (runs on every push/PR to `main`):
@@ -321,9 +393,11 @@ graph LR
 2. Install the .NET 9 SDK.
 3. `dotnet restore` the solution.
 4. `dotnet build` in `Release` configuration.
-5. `dotnet test` and upload the `.trx` results as an artifact.
-6. `dotnet publish` the API and the MVC Web app separately.
-7. Upload both published outputs as downloadable build artifacts (`employeemanagement-api`, `employeemanagement-web`).
+5. `dotnet test` with Coverlet code coverage collection.
+6. Generate an HTML/text coverage report with ReportGenerator and write a summary to the GitHub Actions run summary page.
+7. Upload the `.trx` test results and coverage report as a build artifact.
+8. `dotnet publish` the API and the MVC Web app separately.
+9. Upload both published outputs as downloadable build artifacts (`employeemanagement-api`, `employeemanagement-web`).
 
 **Job 2 — `build-docker-images`** (runs only on pushes to `main`, after Job 1 succeeds):
 1. Set up Docker Buildx.
@@ -361,10 +435,31 @@ git push -u origin feature/employee-search
 # this automatically triggers the CI/CD pipeline defined in ci-cd.yml
 ```
 
-### Recommended branch strategy
+### Recommended branch strategy (trunk-based, GitHub Flow)
 
-- `main` — always deployable; protected; every push triggers CI/CD.
-- `feature/*` — one branch per feature or fix; opened as a pull request into `main`.
+This project uses a lightweight **GitHub Flow** rather than full Git Flow — one long-lived branch, short-lived feature branches, and every merge to `main` is deployable:
+
+```mermaid
+gitGraph
+    commit id: "init"
+    branch feature/employee-search
+    checkout feature/employee-search
+    commit id: "add search endpoint"
+    commit id: "add search UI"
+    checkout main
+    merge feature/employee-search id: "PR #1 merged (CI green)"
+    branch feature/rate-limiting
+    checkout feature/rate-limiting
+    commit id: "add limiter"
+    checkout main
+    merge feature/rate-limiting id: "PR #2 merged (CI green)"
+```
+
+- `main` — always deployable; every push/merge triggers the full CI/CD pipeline.
+- `feature/*` — one branch per feature or fix, opened as a pull request into `main`, merged only once CI is green.
+- `fix/*` / `hotfix/*` — same flow as `feature/*`, used for bug fixes.
+
+If your team needs longer release cycles or parallel release branches, this can be upgraded to full **Git Flow** (`develop`, `release/*`, `hotfix/*` branches) without changing anything else in this repo — only the branch-protection rules and the `on.push.branches` list in `ci-cd.yml` would need to change.
 
 ### Common Git commands used in this project
 
@@ -392,6 +487,30 @@ git push -u origin feature/employee-search
 | Employee List | `docs/screenshots/employee-list.png` |
 | Add Employee | `docs/screenshots/add-employee.png` |
 | Swagger UI | `docs/screenshots/swagger.png` |
+
+---
+
+## Future Enhancements
+
+Deliberately out of scope for this demo, but natural next steps for a real production system:
+
+- **Real authentication** — replace the demo login with JWT bearer tokens issued by the API (or an external identity provider), with the MVC app attaching bearer tokens instead of using its own cookie scheme.
+- **Push Docker images to a registry** — add a login + push step to `build-docker-images` (Docker Hub or GHCR, both free for public images) and deploy via `docker compose pull && docker compose up -d` on a target host.
+- **Centralized log aggregation** — ship Serilog output to Seq, Loki, or the ELK stack instead of local rolling files, for multi-instance deployments.
+- **Distributed caching** — cache frequently-read employee lookups (e.g., department reference data) with an in-memory or Redis cache.
+- **Soft delete & audit trail** — track who changed what and when, instead of hard-deleting `Employee` rows.
+- **Integration tests** — add a test project stage that spins up the API against a real (containerized) SQL Server using `Testcontainers`, complementing the current unit/EF-InMemory tests.
+- **Branch protection & required status checks** — enforce that `ci-cd.yml` must pass before a PR can merge into `main` (configured in GitHub repo settings, not in code).
+
+## Lessons Learned
+
+Notes from building this out that are worth remembering the next time a similar solution is scaffolded:
+
+- **Keep the browser out of CORS entirely when you can.** Routing all AJAX calls through the MVC server (which calls the API server-to-server) sidesteps CORS complexity altogether — the CORS policy on the API is still configured for completeness/documentation, but it's never actually exercised by a browser in this architecture.
+- **`dotnet new` templates change between SDK versions.** This solution was scaffolded with the .NET 10 SDK targeting `net9.0`, which defaults to the newer `.slnx` solution format instead of `.sln` — all tooling (`dotnet build/test`, CI, IDEs) needs to accept that file directly.
+- **AutoMapper's DI registration API is version-sensitive.** Recent AutoMapper versions require an explicit `ILoggerFactory` argument to `MapperConfiguration` and have moved away from the old `services.AddAutoMapper(assembly)` one-liner in some release combinations — check the installed version's actual constructor rather than assuming an older tutorial's syntax still compiles.
+- **Exclude generated code from coverage metrics.** EF Core migrations are scaffolded, not authored — leaving them in coverage stats makes a well-tested codebase look far worse than it is (46% vs. ~86% in this repo) and can mislead a reviewer about actual test quality.
+- **A container health check is more than a nicety.** Without `depends_on: condition: service_healthy` on the SQL Server and API containers, `docker compose up` would routinely race the API's EF Core migration step against SQL Server still booting — the health checks make container startup ordering deterministic instead of flaky.
 
 ---
 
