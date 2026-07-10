@@ -470,6 +470,8 @@ gitGraph
 - `feature/*` — one branch per feature or fix, opened as a pull request into `main`, merged only once CI is green.
 - `fix/*` / `hotfix/*` — same flow as `feature/*`, used for bug fixes.
 
+> **Note on admin bypass:** classic GitHub branch protection does not restrict repository admins by default — an admin can still push directly to a protected branch, and GitHub will report it as a *bypassed* rule violation rather than a hard rejection. To make the rule bind everyone including admins, enable **"Do not allow bypassing the above settings"** on the rule.
+
 If your team needs longer release cycles or parallel release branches, this can be upgraded to full **Git Flow** (`develop`, `release/*`, `hotfix/*` branches) without changing anything else in this repo — only the branch-protection rules and the `on.push.branches` list in `ci-cd.yml` would need to change.
 
 ### Common Git commands used in this project
@@ -511,7 +513,7 @@ Deliberately out of scope for this demo, but natural next steps for a real produ
 - **Distributed caching** — cache frequently-read employee lookups (e.g., department reference data) with an in-memory or Redis cache.
 - **Soft delete & audit trail** — track who changed what and when, instead of hard-deleting `Employee` rows.
 - **Integration tests** — add a test project stage that spins up the API against a real (containerized) SQL Server using `Testcontainers`, complementing the current unit/EF-InMemory tests.
-- **Branch protection & required status checks** — enforce that `ci-cd.yml` must pass before a PR can merge into `main` (configured in GitHub repo settings, not in code).
+- **Fully enforce branch protection** — the three CI checks are already required on `main` (see [Git & GitHub Workflow](#git--github-workflow)); the remaining step is enabling "Do not allow bypassing" so it also binds repository admins, not just other contributors.
 
 ## Lessons Learned
 
@@ -522,6 +524,9 @@ Notes from building this out that are worth remembering the next time a similar 
 - **AutoMapper's DI registration API is version-sensitive.** Recent AutoMapper versions require an explicit `ILoggerFactory` argument to `MapperConfiguration` and have moved away from the old `services.AddAutoMapper(assembly)` one-liner in some release combinations — check the installed version's actual constructor rather than assuming an older tutorial's syntax still compiles.
 - **Exclude generated code from coverage metrics.** EF Core migrations are scaffolded, not authored — leaving them in coverage stats makes a well-tested codebase look far worse than it is (46% vs. ~86% in this repo) and can mislead a reviewer about actual test quality.
 - **A container health check is more than a nicety.** Without `depends_on: condition: service_healthy` on the SQL Server and API containers, `docker compose up` would routinely race the API's EF Core migration step against SQL Server still booting — the health checks make container startup ordering deterministic instead of flaky.
+- **"Builds a Docker image" and "the containers work together" are different claims.** The `build-docker-images` job only proves each Dockerfile builds in isolation. A separate `docker-compose-smoke-test` job that actually runs `docker compose up --wait` and hits real endpoints is what proves the SQL Server → API → Web wiring genuinely works — GitHub-hosted runners come with Docker preinstalled, so this costs nothing extra to add.
+- **Classic branch protection doesn't bind repository admins by default.** A protected branch still accepts a direct push from an admin — GitHub reports it as a *bypassed* rule violation in the push output rather than rejecting it outright. Treat that log line as a signal the rule exists and is being evaluated, not proof it's actually blocking anyone; check "Do not allow bypassing" if the rule needs to apply to every account, including your own.
+- **Never paste a Personal Access Token (or any credential) into a chat, ticket, or log.** Treat it exactly like a password — if one is ever pasted somewhere outside a proper secret store, revoke it immediately and issue a new one rather than trying to "clean up" the exposure after the fact.
 
 ---
 
