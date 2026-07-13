@@ -51,7 +51,9 @@ This repository exists to demonstrate, in one runnable codebase, the practices a
 | Logging        | Serilog (console + rolling file sinks), request logging middleware |
 | Testing        | xUnit, Moq, EF Core InMemory, Coverlet + ReportGenerator for coverage |
 | Containers     | Docker, Docker Compose |
+| Registry       | GitHub Container Registry (`ghcr.io`), free for public images |
 | CI/CD          | GitHub Actions (free tier) |
+| Security       | CodeQL static analysis, Dependabot (NuGet / Actions / Docker) |
 | IDE            | Visual Studio 2026 |
 
 ---
@@ -160,8 +162,10 @@ EmployeeManagementAPI/
 ├── .gitignore
 ├── README.md
 ├── .github/
+│   ├── dependabot.yml                    # Weekly NuGet/Actions/Docker update PRs
 │   └── workflows/
-│       └── ci-cd.yml                    # GitHub Actions pipeline
+│       ├── ci-cd.yml                     # Build, test, publish, GHCR push, compose smoke test
+│       └── codeql.yml                    # CodeQL security scanning
 ├── docker/
 │   ├── Dockerfile.api                   # Multi-stage build for the API
 │   └── Dockerfile.web                   # Multi-stage build for the MVC app
@@ -270,6 +274,17 @@ Stop and also remove the SQL Server data volume (fresh database next run):
 ```bash
 docker compose down -v
 ```
+
+### Option C — Pull the pre-built images instead of building locally
+
+Every push to `main` publishes fresh images to GitHub Container Registry (see [CI/CD with GitHub Actions](#cicd-with-github-actions)). If the packages are set to public, anyone can pull them directly instead of building from source:
+
+```bash
+docker pull ghcr.io/popuri2000/employee-management-devops-demo-api:latest
+docker pull ghcr.io/popuri2000/employee-management-devops-demo-web:latest
+```
+
+If the packages are still private (GitHub's default for images built via `GITHUB_TOKEN`), you'd first authenticate with `docker login ghcr.io` using a PAT with `read:packages` scope, or make the packages public from the repository's **Packages** tab.
 
 ---
 
@@ -403,10 +418,11 @@ graph TD
 
 **Job 2 — `build-docker-images`** (runs only on pushes to `main`, after Job 1 succeeds):
 1. Set up Docker Buildx.
-2. Build the API image from `docker/Dockerfile.api`.
-3. Build the MVC image from `docker/Dockerfile.web`.
+2. Log in to the **GitHub Container Registry** (`ghcr.io`) using the automatically-provided `GITHUB_TOKEN` — no separate registry account, secret, or paid plan needed.
+3. Build and push the API image as `ghcr.io/<owner>/<repo>-api:latest` and `ghcr.io/<owner>/<repo>-api:<commit-sha>`.
+4. Build and push the MVC Web image the same way, as `ghcr.io/<owner>/<repo>-web:latest` / `:<commit-sha>`.
 
-Images are built (not pushed) in this demo pipeline to keep everything within GitHub's free tier — pushing to a registry (Docker Hub, GHCR) can be added by uncommenting/adding a login + push step once you have registry credentials.
+Every push to `main` publishes a runnable, pullable image for that exact commit — the `latest` tag always reflects `main`, and the SHA tag gives you an immutable reference to roll back to. The job's `permissions:` block explicitly grants `packages: write` on the token, scoped to just this job.
 
 **Job 3 — `docker-compose-smoke-test`** (runs only on pushes to `main`, after Job 1 succeeds): this is what actually proves the three containers work together, not just that each image builds in isolation.
 1. `docker compose up -d --build --wait` — builds and starts SQL Server, the API, and the MVC Web app on GitHub's runner, and blocks until all three containers report **healthy** (using the same health checks described in [Docker](#docker)).
@@ -416,6 +432,23 @@ Images are built (not pushed) in this demo pipeline to keep everything within Gi
 5. Dump `docker compose logs` if anything failed, then always run `docker compose down -v` to tear the stack down cleanly.
 
 This job runs on GitHub-hosted `ubuntu-latest` runners, which come with Docker and Compose v2 preinstalled — no self-hosted runner or paid add-on required.
+
+### Concurrency control
+
+`ci-cd.yml` sets a `concurrency` group keyed on the workflow name and ref, with `cancel-in-progress: true`. If you push twice in quick succession, the older run for that branch is cancelled automatically instead of both runs racing to completion — saves CI minutes and avoids confusing "which run is authoritative" situations.
+
+### Dependency updates (Dependabot)
+
+`.github/dependabot.yml` opens weekly pull requests for:
+- **NuGet packages** across the whole solution (grouped into a single PR rather than one PR per package, to keep noise down).
+- **GitHub Actions** versions used in the workflow files (e.g. bumping `actions/checkout@v4` when a new major version ships).
+- **Docker base images** referenced in `docker/Dockerfile.api` and `docker/Dockerfile.web`.
+
+Each Dependabot PR runs through the exact same `ci-cd.yml` checks as a human-authored PR before it can be merged — a dependency bump is just another change that has to pass CI.
+
+### Security scanning (CodeQL)
+
+`.github/workflows/codeql.yml` runs GitHub's free CodeQL static analysis against the C# codebase on every push/PR to `main` and on a weekly schedule. Findings appear in the repository's **Security → Code scanning alerts** tab. CodeQL for public repositories is free — no paid GitHub Advanced Security license required.
 
 ---
 
@@ -508,7 +541,7 @@ If your team needs longer release cycles or parallel release branches, this can 
 Deliberately out of scope for this demo, but natural next steps for a real production system:
 
 - **Real authentication** — replace the demo login with JWT bearer tokens issued by the API (or an external identity provider), with the MVC app attaching bearer tokens instead of using its own cookie scheme.
-- **Push Docker images to a registry** — add a login + push step to `build-docker-images` (Docker Hub or GHCR, both free for public images) and deploy via `docker compose pull && docker compose up -d` on a target host.
+- **Deploy the published GHCR images somewhere** — images now land in the repo's Container Registry on every merge to `main`; the remaining step is an actual deploy target (Azure Container Apps free tier, Fly.io, or a `docker compose pull && docker compose up -d` on a host you control) rather than just publishing them.
 - **Centralized log aggregation** — ship Serilog output to Seq, Loki, or the ELK stack instead of local rolling files, for multi-instance deployments.
 - **Distributed caching** — cache frequently-read employee lookups (e.g., department reference data) with an in-memory or Redis cache.
 - **Soft delete & audit trail** — track who changed what and when, instead of hard-deleting `Employee` rows.
