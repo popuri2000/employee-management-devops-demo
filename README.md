@@ -440,11 +440,13 @@ This job runs on GitHub-hosted `ubuntu-latest` runners, which come with Docker a
 ### Dependency updates (Dependabot)
 
 `.github/dependabot.yml` opens weekly pull requests for:
-- **NuGet packages** across the whole solution (grouped into a single PR rather than one PR per package, to keep noise down).
-- **GitHub Actions** versions used in the workflow files (e.g. bumping `actions/checkout@v4` when a new major version ships).
-- **Docker base images** referenced in `docker/Dockerfile.api` and `docker/Dockerfile.web`.
+- **NuGet packages** across the whole solution (grouped into a single PR rather than one PR per package, to keep noise down). Major-version bumps are ignored — see below.
+- **GitHub Actions** versions used in the workflow files (e.g. bumping `actions/checkout@v4` when a new version ships). Not restricted, since action version bumps are low-risk and rarely change behavior.
+- **Docker base images** referenced in `docker/Dockerfile.api` and `docker/Dockerfile.web`. Major-version bumps are ignored — see below.
 
 Each Dependabot PR runs through the exact same `ci-cd.yml` checks as a human-authored PR before it can be merged — a dependency bump is just another change that has to pass CI.
+
+**Major versions are deliberately excluded.** Both the `nuget` and `docker` entries set `ignore: [{ dependency-name: "*", update-types: ["version-update:semver-major"] }]`. Two concrete reasons this matters here: the Docker base images are pinned to `9.0` to match the solution's `net9.0` target — an automated PR silently bumping them to `10.0` would run the app on an untested runtime; and a NuGet major bump (EF Core, AutoMapper, etc.) can carry breaking API changes that deserve a deliberate look, not a routine merge. Minor and patch updates still flow through automatically; major upgrades are a conscious decision made outside Dependabot.
 
 ### Security scanning (CodeQL)
 

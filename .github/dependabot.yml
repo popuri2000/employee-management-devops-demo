@@ -9,6 +9,12 @@ updates:
       nuget-dependencies:
         patterns:
           - "*"
+    ignore:
+      # Major-version bumps (e.g. EF Core / AutoMapper 9.x -> 10.x) can carry
+      # breaking API or behavior changes and need a deliberate, reviewed
+      # upgrade rather than a routine automated PR.
+      - dependency-name: "*"
+        update-types: [ "version-update:semver-major" ]
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
@@ -27,6 +33,13 @@ updates:
     directory: "/docker"
     schedule:
       interval: "weekly"
+    ignore:
+      # The solution is intentionally pinned to .NET 9 (net9.0 in every
+      # .csproj); a major bump of the Docker base images to .NET 10 would
+      # silently run the app on an untested runtime. Minor/patch updates
+      # within the 9.x line are still applied automatically.
+      - dependency-name: "*"
+        update-types: [ "version-update:semver-major" ]
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
