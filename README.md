@@ -501,11 +501,13 @@ gitGraph
     merge feature/rate-limiting id: "PR #2 merged (CI green)"
 ```
 
-- `main` — always deployable; every push/merge triggers the full CI/CD pipeline. **Protected** in GitHub (Settings → Branches): a pull request is required, and `Restore, Build, Test & Publish`, `Build Docker Images`, and `Docker Compose Smoke Test` must all pass before merging.
+- `main` — always deployable; every push/merge triggers the full CI/CD pipeline. **Protected** in GitHub (Settings → Branches): a pull request is required, and `Restore, Build, Test & Publish`, `Build Docker Images`, and `Docker Compose Smoke Test` are all configured as required status checks.
 - `feature/*` — one branch per feature or fix, opened as a pull request into `main`, merged only once CI is green.
 - `fix/*` / `hotfix/*` — same flow as `feature/*`, used for bug fixes.
 
 > **Note on admin bypass:** classic GitHub branch protection does not restrict repository admins by default — an admin can still push directly to a protected branch, and GitHub will report it as a *bypassed* rule violation rather than a hard rejection. To make the rule bind everyone including admins, enable **"Do not allow bypassing the above settings"** on the rule.
+
+> **Note on what "required" actually gates here:** `Build Docker Images` and `Docker Compose Smoke Test` only run `if: github.event_name == 'push'` (see [CI/CD with GitHub Actions](#cicd-with-github-actions)) — on a pull request they report `skipped`, and GitHub's branch protection treats a skipped required check the same as a passing one (it only blocks on an actual `failure`, not on `skipped`). So in practice, **`Restore, Build, Test & Publish` is the only check that genuinely gates a PR merge**; the other two are real gates against a broken commit ever landing on `main` in the first place, but they execute *after* merge, as a verification step, not before it. Listing them as required is intentional — it means a hard failure in either job (as opposed to a skip) would still block merging — but don't read "3 required checks" as "3 checks ran and passed on this PR."
 
 If your team needs longer release cycles or parallel release branches, this can be upgraded to full **Git Flow** (`develop`, `release/*`, `hotfix/*` branches) without changing anything else in this repo — only the branch-protection rules and the `on.push.branches` list in `ci-cd.yml` would need to change.
 
