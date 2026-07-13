@@ -54,7 +54,7 @@ jobs:
 
       - name: Upload test results and coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: ./test-results
@@ -66,13 +66,13 @@ jobs:
         run: dotnet publish ${{ env.WEB_PROJECT }} --configuration Release --no-build --output ./publish/web
 
       - name: Upload API artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: employeemanagement-api
           path: ./publish/api
 
       - name: Upload MVC Web artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: employeemanagement-web
           path: ./publish/web
