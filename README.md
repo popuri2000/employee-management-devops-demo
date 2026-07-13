@@ -440,11 +440,13 @@ This job runs on GitHub-hosted `ubuntu-latest` runners, which come with Docker a
 ### Dependency updates (Dependabot)
 
 `.github/dependabot.yml` opens weekly pull requests for:
-- **NuGet packages** across the whole solution (grouped into a single PR rather than one PR per package, to keep noise down).
-- **GitHub Actions** versions used in the workflow files (e.g. bumping `actions/checkout@v4` when a new major version ships).
-- **Docker base images** referenced in `docker/Dockerfile.api` and `docker/Dockerfile.web`.
+- **NuGet packages** across the whole solution (grouped into a single PR rather than one PR per package, to keep noise down). Major-version bumps are ignored — see below.
+- **GitHub Actions** versions used in the workflow files (e.g. bumping `actions/checkout@v4` when a new version ships). Not restricted, since action version bumps are low-risk and rarely change behavior.
+- **Docker base images** referenced in `docker/Dockerfile.api` and `docker/Dockerfile.web`. Major-version bumps are ignored — see below.
 
 Each Dependabot PR runs through the exact same `ci-cd.yml` checks as a human-authored PR before it can be merged — a dependency bump is just another change that has to pass CI.
+
+**Major versions are deliberately excluded.** Both the `nuget` and `docker` entries set `ignore: [{ dependency-name: "*", update-types: ["version-update:semver-major"] }]`. Two concrete reasons this matters here: the Docker base images are pinned to `9.0` to match the solution's `net9.0` target — an automated PR silently bumping them to `10.0` would run the app on an untested runtime; and a NuGet major bump (EF Core, AutoMapper, etc.) can carry breaking API changes that deserve a deliberate look, not a routine merge. Minor and patch updates still flow through automatically; major upgrades are a conscious decision made outside Dependabot.
 
 ### Security scanning (CodeQL)
 
@@ -499,11 +501,13 @@ gitGraph
     merge feature/rate-limiting id: "PR #2 merged (CI green)"
 ```
 
-- `main` — always deployable; every push/merge triggers the full CI/CD pipeline. **Protected** in GitHub (Settings → Branches): a pull request is required, and `Restore, Build, Test & Publish`, `Build Docker Images`, and `Docker Compose Smoke Test` must all pass before merging.
+- `main` — always deployable; every push/merge triggers the full CI/CD pipeline. **Protected** in GitHub (Settings → Branches): a pull request is required, and `Restore, Build, Test & Publish`, `Build Docker Images`, and `Docker Compose Smoke Test` are all configured as required status checks.
 - `feature/*` — one branch per feature or fix, opened as a pull request into `main`, merged only once CI is green.
 - `fix/*` / `hotfix/*` — same flow as `feature/*`, used for bug fixes.
 
 > **Note on admin bypass:** classic GitHub branch protection does not restrict repository admins by default — an admin can still push directly to a protected branch, and GitHub will report it as a *bypassed* rule violation rather than a hard rejection. To make the rule bind everyone including admins, enable **"Do not allow bypassing the above settings"** on the rule.
+
+> **Note on what "required" actually gates here:** `Build Docker Images` and `Docker Compose Smoke Test` only run `if: github.event_name == 'push'` (see [CI/CD with GitHub Actions](#cicd-with-github-actions)) — on a pull request they report `skipped`, and GitHub's branch protection treats a skipped required check the same as a passing one (it only blocks on an actual `failure`, not on `skipped`). So in practice, **`Restore, Build, Test & Publish` is the only check that genuinely gates a PR merge**; the other two are real gates against a broken commit ever landing on `main` in the first place, but they execute *after* merge, as a verification step, not before it. Listing them as required is intentional — it means a hard failure in either job (as opposed to a skip) would still block merging — but don't read "3 required checks" as "3 checks ran and passed on this PR."
 
 If your team needs longer release cycles or parallel release branches, this can be upgraded to full **Git Flow** (`develop`, `release/*`, `hotfix/*` branches) without changing anything else in this repo — only the branch-protection rules and the `on.push.branches` list in `ci-cd.yml` would need to change.
 
